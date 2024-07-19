@@ -1,9 +1,9 @@
 import { expect, jest, test } from '@jest/globals'
-import { screen, fireEvent } from "@testing-library/dom"
+import { screen, fireEvent, waitFor } from "@testing-library/dom"
 import NewBillUI from "../views/NewBillUI.js"
 import NewBill from "../containers/NewBill.js"
-import store from "../__mocks__/store.js"
-import { ROUTES_PATH } from "../constants/routes.js"
+import mockStore from "../__mocks__/store.js"
+import { ROUTES, ROUTES_PATH } from "../constants/routes.js"
 
 describe("Given I am connected as an employee", () => {
   describe("When I am on NewBill Page", () => {
@@ -19,7 +19,7 @@ describe("Given I am connected as an employee", () => {
       newBillInstance = new NewBill({
         document: document,
         onNavigate: jest.fn(),
-        store: store,
+        store: mockStore,
         localStorage: window.localStorage,
       })
     })
@@ -74,17 +74,18 @@ describe("Given I am connected as an employee", () => {
       expect(newBillInstance.fileName).toBe('fileName.jpeg')
     })
 
-  
+
     // This test verifies the behavior of adding a new bill
     test("Then, I add a bill from mock API POST", async () => {
-      // Create a spy for the `bills` method of the `mockStore` object
-      const billsMock = jest.spyOn(store, "bills")
-
-      // Define an object representing a new bill to be added
+      document.body.innerHTML = NewBillUI();
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname });
+      };
       const bill = {
         id: "47qAXb6fIm2zOKkLzMro",
         vat: "80",
-        fileUrl: "https://firebasestorage.googleapis.com/v0/b/billable-677b6.a…f-1.jpg?alt=media&token=c1640e12-a24b-4b11-ae52-529112e9602a",
+        fileUrl:
+          "https://firebasestorage.googleapis.com/v0/b/billable-677b6.a…f-1.jpg?alt=media&token=c1640e12-a24b-4b11-ae52-529112e9602a",
         status: "pending",
         type: "Hôtel et logement",
         commentary: "séminaire billed",
@@ -95,107 +96,78 @@ describe("Given I am connected as an employee", () => {
         commentAdmin: "ok",
         email: "a@a",
         pct: 20,
-      }
-      // Call the `update` method of the `bills` object of the `mockStore` with the new bill
-      const postBills = await store.bills().update(bill)
+      };
+      const store = mockStore;
+      const newBill = new NewBill({
+        document,
+        onNavigate,
+        store,
+        localStorage,
+      });
+      const updateSpy = jest.spyOn(mockStore.bills(), "update");
 
-      // Verify that the `bills` method of the `mockStore` object was called exactly once
-      expect(billsMock).toHaveBeenCalledTimes(1)
-
-      // Verify that the bill returned by the `update` method is identical to the added bill
-      expect(postBills).toStrictEqual(bill)
-    })
+      const form = screen.getByTestId("form-new-bill");
+      form.addEventListener("submit", newBill.handleSubmit);
+      fireEvent.submit(form);
+      await waitFor(() => {
+        expect(updateSpy).toHaveBeenCalled();
+      });
+      const postedBill = await mockStore.bills().update();
+      expect(postedBill).toEqual(bill);
+    });
 
     // Test to verify that adding bills from an API fails with a 404 error message
     test("Then, I add bills from an API and fails with 404 message error", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error")
-      const mockEvent = {
-        preventDefault: jest.fn(),
-        target: {
-          querySelector: jest.fn().mockImplementation((selector) => {
-            switch (selector) {
-              case 'input[data-testid="datepicker"]':
-                return { value: '2001-01-01' }
-              case 'select[data-testid="expense-type"]':
-                return { value: 'Hôtel et logement' }
-              case 'input[data-testid="expense-name"]':
-                return { value: 'encore' }
-              case 'input[data-testid="amount"]':
-                return { value: '400' }
-              case 'input[data-testid="vat"]':
-                return { value: '80' }
-              case 'textarea[data-testid="commentary"]':
-                return { value: 'séminaire billed' }
-              case 'input[data-testid="pct"]':
-                return { value: '20' }
-              default:
-                return null
-            }
-          }),
-        }
-      }
+      document.body.innerHTML = NewBillUI();
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname });
+      };
+      const spyOnConsole = jest.spyOn(console, "error");
       const store = {
-        bills: jest.fn(() => store),
+        bills: jest.fn(() => newBill.store),
+        create: jest.fn(() => Promise.resolve({})),
         update: jest.fn(() => Promise.reject(new Error("404"))),
-      }
-      newBillInstance.store = store
-      newBillInstance.fileAccepted = true
+      };
+      const newBill = new NewBill({
+        document,
+        onNavigate,
+        store,
+        localStorage,
+      });
+      const form = screen.getByTestId("form-new-bill");
 
-      const form = screen.getByTestId("form-new-bill")
-      const handleSubmit = jest.fn(newBillInstance.handleSubmit(mockEvent))
-
-      form.addEventListener("submit", handleSubmit())
-
-      fireEvent.submit(form)
-      await new Promise(process.nextTick)
-
-      expect(consoleErrorSpy).toBeCalledWith(new Error("404"))
-    })
+      form.addEventListener("submit", newBill.handleSubmit);
+      fireEvent.submit(form);
+      await waitFor(() => {
+        expect(spyOnConsole).toBeCalledWith(new Error("404"));
+      });
+    });
 
     // Test to verify that adding bills from an API fails with a 500 error message
     test("Then, I add bills from an API and fails with 500 message error", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error")
-      const mockEvent = {
-        preventDefault: jest.fn(),
-        target: {
-          querySelector: jest.fn().mockImplementation((selector) => {
-            switch (selector) {
-              case 'input[data-testid="datepicker"]':
-                return { value: '2001-01-01' }
-              case 'select[data-testid="expense-type"]':
-                return { value: 'Hôtel et logement' }
-              case 'input[data-testid="expense-name"]':
-                return { value: 'encore' }
-              case 'input[data-testid="amount"]':
-                return { value: '400' }
-              case 'input[data-testid="vat"]':
-                return { value: '80' }
-              case 'textarea[data-testid="commentary"]':
-                return { value: 'séminaire billed' }
-              case 'input[data-testid="pct"]':
-                return { value: '20' }
-              default:
-                return null
-            }
-          }),
-        }
-      }
+      document.body.innerHTML = NewBillUI();
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname });
+      };
+      const spyOnConsole = jest.spyOn(console, "error");
       const store = {
-        bills: jest.fn(() => store),
+        bills: jest.fn(() => newBill.store),
+        create: jest.fn(() => Promise.resolve({})),
         update: jest.fn(() => Promise.reject(new Error("500"))),
-      }
+      };
+      const newBill = new NewBill({
+        document,
+        onNavigate,
+        store,
+        localStorage,
+      });
+      const form = screen.getByTestId("form-new-bill");
+      form.addEventListener("submit", newBill.handleSubmit);
 
-      newBillInstance.store = store
-      newBillInstance.fileAccepted = true
-
-      const form = screen.getByTestId("form-new-bill")
-      const handleSubmit = jest.fn(newBillInstance.handleSubmit(mockEvent))
-
-      form.addEventListener("submit", handleSubmit())
-      fireEvent.submit(form)
-      await new Promise(process.nextTick)
-
-      expect(consoleErrorSpy).toBeCalledWith(new Error("500"))
-    })
-  })
+      fireEvent.submit(form);
+      waitFor(() => {
+        expect(spyOnConsole).toBeCalledWith(new Error("500"));
+      });
+    });
+  });
 })

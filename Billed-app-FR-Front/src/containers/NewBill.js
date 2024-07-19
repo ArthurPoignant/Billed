@@ -24,8 +24,6 @@ export default class NewBill {
     const fileFormat = fileName.substr(fileName.lastIndexOf('.')+1, fileName.length-1)
     this.fileAccepted = fileAcceptedFormats.includes(fileFormat)
     if (!this.fileAccepted) {
-      console.log(this.fileAccepted, 'if')
-      console.log(fileinput.value)
       fileinput.value = "" // Remove file from the input
       fileinput.classList.add("invalid") // Add invalid class to tell user input is invalid
       fileinput.classList.remove("blue-border") // Remove blue-border class
